@@ -28,7 +28,6 @@ public class Registre {
     private long _date_fermeture;
     private long _date_derniere_lecture;
     private short _id_type;
-    //TODO Ajouter les énumerations pour  id_type
 
     // Getter Methods 
     @XmlElement

@@ -59,7 +59,7 @@ public class Categorie implements Comparable<Categorie> {
         int categorie = this.getLibelle().compareTo(o.getLibelle());
         if (categorie != 0) {
             return categorie;
-        };
+        }
 
         return 0;
 
