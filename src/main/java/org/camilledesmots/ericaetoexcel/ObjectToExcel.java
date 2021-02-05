@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -30,6 +31,8 @@ import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.camilledesmots.ericae.xml.Registre;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -59,12 +62,12 @@ public class ObjectToExcel {
     // @ Répertoire ou va être généré le fichier EXCEL
     private String resultFolder;
 
-    // Liste des registres
-    private List< Registre> registres;
+    // Liste des listRegistre
+    private List< Registre> listRegistre;
 
     private Map< String, Entree> mapEntrees;
 
-    // Liste de toutes les entrées des registres
+    // Liste de toutes les entrées des listRegistre
     private List< Entree> listEntree;
 
     // Nom du fichier EXCEL
@@ -91,13 +94,13 @@ public class ObjectToExcel {
      * A partir de la liste d'éléments de la classe Registre va créer un fichier
      * EXCEL
      *
-     * @param registres Le répertoire ou sont les registres
+     * @param registres Le répertoire ou sont les listRegistre
      * @param resultFolfer Le répertoire ou va être généré la feuille EXCEL
      * @param aucompletion La liste d'autocompletion
      */
     public ObjectToExcel(List<Registre> registres, String resultFolder) {
-        this.registres = new ArrayList<>();
-        this.registres = registres;
+        this.listRegistre = new ArrayList<>();
+        this.listRegistre = registres;
         this.resultFolder = resultFolder;
         this.fileName = "";
 
@@ -150,9 +153,66 @@ public class ObjectToExcel {
 
     }
 
+    private void worksheetRegistresXlsx(Workbook wb) {
+        String ongletName = "Registres";
+        short rowCpt = 0;
+        short columnCpt = 0;
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm.ss");
+
+        LOG.log(Level.INFO, "Création de l'onglet \"" + ongletName + "\"");
+
+        CreationHelper creationHelper = wb.getCreationHelper();
+        Sheet sheet = wb.createSheet(ongletName);
+
+        // Titre de colonnes
+        //TODO Appliquer un style et une mise en forme à la 1ère ligne 
+        Row row_0 = sheet.createRow(rowCpt++);
+        row_0.createCell(columnCpt++).setCellValue("Nom du registre");
+        row_0.createCell(columnCpt++).setCellValue("Nom du responsable");
+        row_0.createCell(columnCpt++).setCellValue("Date ouverture");
+        row_0.createCell(columnCpt++).setCellValue("Date fermeture");
+        row_0.createCell(columnCpt++).setCellValue("Date dernière lecture");
+        row_0.createCell(columnCpt++).setCellValue("Essai");
+        row_0.createCell(columnCpt++).setCellValue("Type");
+
+        Collections.sort(this.listRegistre, (r1, r2) -> {
+            return r1.get_nom().compareTo(r2.get_nom());
+        });
+
+        for (Registre registre : this.listRegistre) {
+            String nom_UTF8 = "";
+
+            try {
+                nom_UTF8 = new String(registre.get_nom().getBytes("ISO-8859-1"), "UTF-8");
+            } catch (UnsupportedEncodingException ex) {
+                LOG.log(Level.SEVERE, null, ex);
+            }
+
+            String nom_responsable_UTF8 = "";
+            if (registre.get_nom_responsable() != null) {
+                try {
+                    nom_responsable_UTF8 = new String(registre.get_nom_responsable().getBytes("ISO-8859-1"), "UTF-8");
+                } catch (UnsupportedEncodingException ex) {
+                    LOG.log(Level.SEVERE, null, ex);
+                }
+            }
+
+            short i = 0;
+            Row row = sheet.createRow(rowCpt++);
+            row.createCell(i++).setCellValue(nom_UTF8);
+            row.createCell(i++).setCellValue(nom_responsable_UTF8);
+            row.createCell(i++).setCellValue(dtf.format(this.getLocalDateTimeFromSeconds(registre.get_date_ouverture())));
+            row.createCell(i++).setCellValue(dtf.format(this.getLocalDateTimeFromSeconds(registre.get_date_fermeture())));
+            row.createCell(i++).setCellValue(dtf.format(this.getLocalDateTimeFromSeconds(registre.get_date_derniere_lecture())));
+            row.createCell(i++).setCellValue(registre.get_essai());
+            row.createCell(i++).setCellValue(registre.get_id_type());
+        }
+
+    }
+
     private void worksheetDonneesXlsx(Workbook wb) {
         String ongletName = "Données";
-
         short rowCpt = 0;
         short columnCpt = 0;
 
@@ -207,18 +267,6 @@ public class ObjectToExcel {
         // Date au format 2019-05-05T19:26:17.394
         style.setDataFormat(creationHelper.createDataFormat().getFormat("yyyy/mm/dd hh:mm:ss.SSS"));
 
-//        for (CallLogItem i : this.callLogItemList) {
-//            rowCpt++;
-//            Row row_n = sheet.createRow(rowCpt);
-//
-//            Cell cell_n_0 = row_n.createCell(0);
-//            cell_n_0.setCellValue(dtf.format(i.getLocalDateTime()));
-//            cell_n_0.setCellStyle(style);
-//
-//            row_n.createCell(1).setCellValue(i.getNumber().replaceFirst("\\d{2}$", "XX"));
-//            row_n.createCell(2).setCellValue(i.getType());
-//            row_n.createCell(3).setCellValue(i.getDuration());
-//        }
         // TODO Trier les entrées suivant le n° d'identification
         // Boucle sur les entrées 
         for (Entree e : this.listEntree) {
@@ -298,6 +346,7 @@ public class ObjectToExcel {
 
         // Nouvelle feuille EXCEL
         Workbook wb = new XSSFWorkbook();
+        this.worksheetRegistresXlsx(wb);
         // Ajout de l'onglet "Données" à la feuille EXCEL.
         this.worksheetDonneesXlsx(wb);
 
@@ -319,7 +368,11 @@ public class ObjectToExcel {
         this.worksheetNatureSortieParJourXlsx(wb);
         this.worksheetEspeceNatureSortieParAnXlsx(wb);
         this.worksheetNatureSortieParAnXlsx(wb);
-
+        this.worksheetCauseAccueilParJourXlsx(wb);
+        this.worksheetCauseAccueilParMoisXlsx(wb);
+        this.worksheetCauseAccueilParAnXlsx(wb);
+        this.worksheetDepartementOriginelParAnXlsx(wb);
+        
 //        Integer cpt = 1;
 //
 //        for (String str : this.treeSetEspeces) {
@@ -1886,4 +1939,455 @@ public class ObjectToExcel {
         mapSortie.clear();
     }
 
+    /**
+     * Création d'une feuille EXCEL avec les causes d'accueil par jour
+     *
+     * @param wb Onglet EXCEL
+     */
+    private void worksheetCauseAccueilParJourXlsx(Workbook wb) {
+        String ongletName = "Cause accueil x jour";
+
+        DateTimeFormatter dtfYear = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+
+        int rowCpt = 0;
+        short columnCpt = 0;
+        String espece_UTF8 = "";
+
+        LOG.log(Level.INFO, "Création de l'onglet \"" + ongletName + "\"");
+
+        CreationHelper creationHelper = wb.getCreationHelper();
+        Sheet sheet = wb.createSheet(ongletName);
+
+        // Titre de colonnes
+        Row row_0 = sheet.createRow(rowCpt);
+        row_0.createCell(columnCpt++).setCellValue("Cause accueil");
+        row_0.createCell(columnCpt++).setCellValue("Date");
+        row_0.createCell(columnCpt++).setCellValue("Nombre");
+
+        rowCpt++;
+
+        LOG.info("Nombre d'entrée au total :" + this.mapEntrees.size());
+
+        // Nature sortie, Date, Nombre de sortie
+        Map<String, Map< String, Integer>> mapSortie = new TreeMap<>();
+
+        for (Entree entree : this.listEntree) {
+
+            LOG.log(Level.FINEST, "      Entrée à tester: espece: " + entree.getEspece().getNomVernac()
+                    + " nombre: " + entree.get_nombre()
+                    + " date arrivée: " + dtfYear.format(this.getLocalDateTimeFromSeconds(entree.get_date_entree())));
+
+            // Recherche de la date de sortie la plus grande
+            String dateSortieMax = "";
+
+            String libelleSortieMax = "";
+            String justificatifSortieMax = "";
+            Integer nombreMax = 0;
+            
+            String dateEntree = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(entree.get_date_entree()));
+
+            if (entree.getSortiesObject().getSortie() != null) {
+
+                for (Sortie sortie : entree.getSortiesObject().getSortie()) {
+                    // On recherche la date de sortie la plus grande 
+                    if (dtfYear.format(this.getLocalDateTimeToDayFromSeconds(sortie.getDateSortie())).compareTo(dateSortieMax) != 0) {
+                        dateSortieMax = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(sortie.getDateSortie()));
+                        libelleSortieMax = sortie.getNature().getLibelle();
+                        justificatifSortieMax = sortie.getJustificatifsSortie();
+                        nombreMax = sortie.getNombre();
+                    }
+                }
+            }
+
+            // On converti en minutes
+            if (mapSortie.containsKey(justificatifSortieMax)) {
+                // La Map contient déjà ce motif de sortie.
+                if (mapSortie.get(justificatifSortieMax).containsKey(dateEntree)) {
+                    // La date existe déjà
+                    Integer nouveauCumul = mapSortie.get(justificatifSortieMax).get(dateEntree) + entree.get_nombre();
+
+                    mapSortie.get(justificatifSortieMax).put(dateEntree, nouveauCumul);
+                } else {
+                    // Il faut créer 
+                    mapSortie.get(justificatifSortieMax).put(dateEntree, entree.get_nombre());
+                }
+
+            } else {
+                // La Map ne contient pas encore ce motif de sortie.
+                Map<String, Integer> mapSimple = new HashMap<>();
+                mapSimple.put(dateSortieMax, nombreMax);
+
+                mapSortie.put(justificatifSortieMax, mapSimple);
+            }
+
+        }
+
+        if (mapSortie.size() > 0) {
+
+            for (Map.Entry<String, Map<String, Integer>> mapNatureSortie : mapSortie.entrySet()) {
+                for (Map.Entry<String, Integer> mapDateCumul : mapNatureSortie.getValue().entrySet()) {
+
+                    String motifSortie = "";
+                    try {
+                        motifSortie = new String(mapNatureSortie.getKey().getBytes("ISO-8859-1"), "UTF-8");
+                    } catch (UnsupportedEncodingException ex) {
+                        LOG.log(Level.SEVERE, null, ex);
+                    }
+
+                    Row row = sheet.createRow(rowCpt++);
+                    row.createCell(0).setCellValue(motifSortie);
+                    row.createCell(1).setCellValue(mapDateCumul.getKey());
+                    row.createCell(2).setCellValue(mapDateCumul.getValue());
+
+                }
+            }
+
+        }
+
+        mapSortie.clear();
+    }
+    
+   /**
+     * Création d'une feuille EXCEL avec les causes d'accueil par mois
+     *
+     * @param wb Onglet EXCEL
+     */
+    private void worksheetCauseAccueilParMoisXlsx(Workbook wb) {
+        String ongletName = "Cause accueil x mois";
+
+        DateTimeFormatter dtfYear = DateTimeFormatter.ofPattern("yyyy/MM");
+
+        int rowCpt = 0;
+        short columnCpt = 0;
+        String espece_UTF8 = "";
+
+        LOG.log(Level.INFO, "Création de l'onglet \"" + ongletName + "\"");
+
+        CreationHelper creationHelper = wb.getCreationHelper();
+        Sheet sheet = wb.createSheet(ongletName);
+
+        // Titre de colonnes
+        Row row_0 = sheet.createRow(rowCpt);
+        row_0.createCell(columnCpt++).setCellValue("Cause accueil");
+        row_0.createCell(columnCpt++).setCellValue("Date");
+        row_0.createCell(columnCpt++).setCellValue("Nombre");
+
+        rowCpt++;
+
+        LOG.info("Nombre d'entrée au total :" + this.mapEntrees.size());
+
+        // Nature sortie, Date, Nombre de sortie
+        Map<String, Map< String, Integer>> mapSortie = new TreeMap<>();
+
+        for (Entree entree : this.listEntree) {
+
+            LOG.log(Level.FINEST, "      Entrée à tester: espece: " + entree.getEspece().getNomVernac()
+                    + " nombre: " + entree.get_nombre()
+                    + " date arrivée: " + dtfYear.format(this.getLocalDateTimeFromSeconds(entree.get_date_entree())));
+
+            // Recherche de la date de sortie la plus grande
+            String dateSortieMax = "";
+
+            String libelleSortieMax = "";
+            String justificatifSortieMax = "";
+            Integer nombreMax = 0;
+            
+            String dateEntree = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(entree.get_date_entree()));
+
+            if (entree.getSortiesObject().getSortie() != null) {
+
+                for (Sortie sortie : entree.getSortiesObject().getSortie()) {
+                    // On recherche la date de sortie la plus grande 
+                    if (dtfYear.format(this.getLocalDateTimeToDayFromSeconds(sortie.getDateSortie())).compareTo(dateSortieMax) != 0) {
+                        dateSortieMax = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(sortie.getDateSortie()));
+                        libelleSortieMax = sortie.getNature().getLibelle();
+                        justificatifSortieMax = sortie.getJustificatifsSortie();
+                        nombreMax = sortie.getNombre();
+                    }
+                }
+            }
+
+            // On converti en minutes
+            if (mapSortie.containsKey(justificatifSortieMax)) {
+                // La Map contient déjà ce motif de sortie.
+                if (mapSortie.get(justificatifSortieMax).containsKey(dateEntree)) {
+                    // La date existe déjà
+                    Integer nouveauCumul = mapSortie.get(justificatifSortieMax).get(dateEntree) + entree.get_nombre();
+
+                    mapSortie.get(justificatifSortieMax).put(dateEntree, nouveauCumul);
+                } else {
+                    // Il faut créer 
+                    mapSortie.get(justificatifSortieMax).put(dateEntree, entree.get_nombre());
+                }
+
+            } else {
+                // La Map ne contient pas encore ce motif de sortie.
+                Map<String, Integer> mapSimple = new HashMap<>();
+                mapSimple.put(dateSortieMax, nombreMax);
+
+                mapSortie.put(justificatifSortieMax, mapSimple);
+            }
+
+        }
+
+        if (mapSortie.size() > 0) {
+
+            for (Map.Entry<String, Map<String, Integer>> mapNatureSortie : mapSortie.entrySet()) {
+                for (Map.Entry<String, Integer> mapDateCumul : mapNatureSortie.getValue().entrySet()) {
+
+                    String motifSortie = "";
+                    try {
+                        motifSortie = new String(mapNatureSortie.getKey().getBytes("ISO-8859-1"), "UTF-8");
+                    } catch (UnsupportedEncodingException ex) {
+                        LOG.log(Level.SEVERE, null, ex);
+                    }
+
+                    Row row = sheet.createRow(rowCpt++);
+                    row.createCell(0).setCellValue(motifSortie);
+                    row.createCell(1).setCellValue(mapDateCumul.getKey());
+                    row.createCell(2).setCellValue(mapDateCumul.getValue());
+
+                }
+            }
+
+        }
+
+        mapSortie.clear();
+    }    
+    
+/**
+     * Création d'une feuille EXCEL avec les causes d'accueil par mois
+     *
+     * @param wb Onglet EXCEL
+     */
+    private void worksheetCauseAccueilParAnXlsx(Workbook wb) {
+        String ongletName = "Cause accueil x an";
+
+        DateTimeFormatter dtfYear = DateTimeFormatter.ofPattern("yyyy");
+
+        int rowCpt = 0;
+        short columnCpt = 0;
+        String espece_UTF8 = "";
+
+        LOG.log(Level.INFO, "Création de l'onglet \"" + ongletName + "\"");
+
+        CreationHelper creationHelper = wb.getCreationHelper();
+        Sheet sheet = wb.createSheet(ongletName);
+
+        // Titre de colonnes
+        Row row_0 = sheet.createRow(rowCpt);
+        row_0.createCell(columnCpt++).setCellValue("Cause accueil");
+        row_0.createCell(columnCpt++).setCellValue("Date");
+        row_0.createCell(columnCpt++).setCellValue("Nombre");
+
+        rowCpt++;
+
+        LOG.info("Nombre d'entrée au total :" + this.mapEntrees.size());
+
+        // Nature sortie, Date, Nombre de sortie
+        Map<String, Map< String, Integer>> mapSortie = new TreeMap<>();
+
+        for (Entree entree : this.listEntree) {
+
+            LOG.log(Level.FINEST, "      Entrée à tester: espece: " + entree.getEspece().getNomVernac()
+                    + " nombre: " + entree.get_nombre()
+                    + " date arrivée: " + dtfYear.format(this.getLocalDateTimeFromSeconds(entree.get_date_entree())));
+
+            // Recherche de la date de sortie la plus grande
+            String dateSortieMax = "";
+
+
+            String justificatifSortieMax = "";
+            Integer nombreMax = 0;
+            
+            String dateEntree = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(entree.get_date_entree()));
+
+            if (entree.getSortiesObject().getSortie() != null) {
+
+                for (Sortie sortie : entree.getSortiesObject().getSortie()) {
+                    
+//                    if (sortie.getJustificatifsSortie().length() > 0){
+//                        justificatifSortieMax = justificatifSortieMax + "|" + sortie.getJustificatifsSortie();
+//                    }
+                    
+                    // On recherche la date de sortie la plus grande 
+                    if (dtfYear.format(this.getLocalDateTimeToDayFromSeconds(sortie.getDateSortie())).compareTo(dateSortieMax) != 0) {
+                        dateSortieMax = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(sortie.getDateSortie()));
+                        justificatifSortieMax = sortie.getJustificatifsSortie();
+                        nombreMax = sortie.getNombre();
+                    }
+                }
+            }
+            
+            // TODO Nettoyer le champ libelleProvenance
+            
+//            try {
+//                justificatifSortieMax = new String(justificatifSortieMax.getBytes("ISO-8859-1"), "UTF-8");
+//            } catch (UnsupportedEncodingException ex) {
+//                LOG.log(Level.SEVERE, null, ex);
+//            }
+            
+           justificatifSortieMax = justificatifSortieMax.replaceAll("Cause d'accueil : ", "");
+           //justificatifSortieMax = justificatifSortieMax.replaceAll("é", "e");
+           //justificatifSortieMax = justificatifSortieMax.replaceAll("è", "e");
+           //justificatifSortieMax = justificatifSortieMax.replaceAll("ê", "e");
+           //justificatifSortieMax = justificatifSortieMax.toLowerCase(Locale.FRANCE);
+
+            // On converti en minutes
+            if (mapSortie.containsKey(justificatifSortieMax)) {
+                // La Map contient déjà ce motif de sortie.
+                if (mapSortie.get(justificatifSortieMax).containsKey(dateEntree)) {
+                    // La date existe déjà
+                    Integer nouveauCumul = mapSortie.get(justificatifSortieMax).get(dateEntree) + entree.get_nombre();
+
+                    mapSortie.get(justificatifSortieMax).put(dateEntree, nouveauCumul);
+                } else {
+                    // Il faut créer 
+                    mapSortie.get(justificatifSortieMax).put(dateEntree, entree.get_nombre());
+                }
+
+            } else {
+                // La Map ne contient pas encore ce motif de sortie.
+                Map<String, Integer> mapSimple = new HashMap<>();
+                mapSimple.put(dateSortieMax, nombreMax);
+
+                mapSortie.put(justificatifSortieMax, mapSimple);
+            }
+
+        }
+
+        if (mapSortie.size() > 0) {
+
+            for (Map.Entry<String, Map<String, Integer>> mapNatureSortie : mapSortie.entrySet()) {
+                for (Map.Entry<String, Integer> mapDateCumul : mapNatureSortie.getValue().entrySet()) {
+
+                    String motifSortie = "";
+                    try {
+                        motifSortie = new String(mapNatureSortie.getKey().getBytes("ISO-8859-1"), "UTF-8");
+                    } catch (UnsupportedEncodingException ex) {
+                        LOG.log(Level.SEVERE, null, ex);
+                    }
+
+                    Row row = sheet.createRow(rowCpt++);
+                    row.createCell(0).setCellValue(motifSortie);
+                    row.createCell(1).setCellValue(mapDateCumul.getKey());
+                    row.createCell(2).setCellValue(mapDateCumul.getValue());
+
+                }
+            }
+
+        }
+
+        mapSortie.clear();
+    }        
+    
+    /**
+     * Création d'une feuille EXCEL avec les causes d'accueil par mois
+     *
+     * @param wb Onglet EXCEL
+     */
+    private void worksheetDepartementOriginelParAnXlsx(Workbook wb) {
+        String ongletName = "Departement x an";
+
+        DateTimeFormatter dtfYear = DateTimeFormatter.ofPattern("yyyy");
+
+        int rowCpt = 0;
+        short columnCpt = 0;
+        String espece_UTF8 = "";
+
+        LOG.log(Level.INFO, "Création de l'onglet \"" + ongletName + "\"");
+
+        CreationHelper creationHelper = wb.getCreationHelper();
+        Sheet sheet = wb.createSheet(ongletName);
+
+        // Titre de colonnes
+        Row row_0 = sheet.createRow(rowCpt);
+        row_0.createCell(columnCpt++).setCellValue("Département");
+        row_0.createCell(columnCpt++).setCellValue("Date");
+        row_0.createCell(columnCpt++).setCellValue("Nombre");
+
+        rowCpt++;
+
+        LOG.info("Nombre d'entrée au total :" + this.mapEntrees.size());
+
+        // Provenance, Date, Nombre de sortie
+        Map<String, Map< String, Integer>> mapProvenanceDateNombre = new TreeMap<>();
+
+        for (Entree entree : this.listEntree) {
+
+            LOG.log(Level.FINEST, "      Entrée à tester: espece: " + entree.getEspece().getNomVernac()
+                    + " nombre: " + entree.get_nombre()
+                    + " date arrivée: " + dtfYear.format(this.getLocalDateTimeFromSeconds(entree.get_date_entree())));
+
+            // Recherche de la date de sortie la plus grande
+            String libelleProvenance = "";
+            Integer nombreMax = 0;
+            
+            String departement = "XX";
+            
+            String dateEntree = dtfYear.format(this.getLocalDateTimeToDayFromSeconds(entree.get_date_entree()));
+
+            if (entree.getProvenance() != null) {
+                
+                libelleProvenance = entree.getProvenance().getLibelle();
+            } 
+            
+            // Extraction du département à partir de libelleProvenance
+            
+            Pattern p = Pattern.compile("[0-9]{2}");
+            Matcher m = p.matcher(libelleProvenance);
+            if (m.find()){
+                departement = m.group();
+            }
+            //LOG.log(Level.INFO, "Libellé \"" + libelleProvenance + "\" département : " + departement); 
+            
+            
+            // On converti en minutes
+            if (mapProvenanceDateNombre.containsKey(departement)) {
+                // La Map contient déjà ce motif de sortie.
+                if (mapProvenanceDateNombre.get(departement).containsKey(dateEntree)) {
+                    // La date existe déjà
+                    Integer nouveauCumul = mapProvenanceDateNombre.get(departement).get(dateEntree) + entree.get_nombre();
+
+                    mapProvenanceDateNombre.get(departement).put(dateEntree, nouveauCumul);
+                } else {
+                    // Il faut créer 
+                    mapProvenanceDateNombre.get(departement).put(dateEntree, entree.get_nombre());
+                }
+
+            } else {
+                // La Map ne contient pas encore ce motif de sortie.
+                Map<String, Integer> mapSimple = new HashMap<>();
+                mapSimple.put(dateEntree, nombreMax);
+
+                mapProvenanceDateNombre.put(departement, mapSimple);
+            }
+
+        }
+
+        if (mapProvenanceDateNombre.size() > 0) {
+
+            for (Map.Entry<String, Map<String, Integer>> mapNatureSortie : mapProvenanceDateNombre.entrySet()) {
+                for (Map.Entry<String, Integer> mapDateCumul : mapNatureSortie.getValue().entrySet()) {
+
+                    String motifSortie = "";
+                    try {
+                        motifSortie = new String(mapNatureSortie.getKey().getBytes("ISO-8859-1"), "UTF-8");
+                    } catch (UnsupportedEncodingException ex) {
+                        LOG.log(Level.SEVERE, null, ex);
+                    }
+
+                    Row row = sheet.createRow(rowCpt++);
+                    row.createCell(0).setCellValue(motifSortie);
+                    row.createCell(1).setCellValue(mapDateCumul.getKey());
+                    row.createCell(2).setCellValue(mapDateCumul.getValue());
+
+                }
+            }
+
+        }
+
+        mapProvenanceDateNombre.clear();
+    }        
+    
 }

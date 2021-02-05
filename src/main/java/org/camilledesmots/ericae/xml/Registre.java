@@ -7,6 +7,8 @@ package org.camilledesmots.ericae.xml;
 
 import org.camilledesmots.ericae.xml.Adresse;
 import java.util.List;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -15,67 +17,67 @@ import javax.xml.bind.annotation.XmlRootElement;
  *
  * @author Camille Desmots
  */
-@XmlRootElement
+@XmlRootElement(name = "registre")
+@XmlAccessorType(XmlAccessType.FIELD)
 public class Registre {
-
+    //@XmlElement(name="entrees")
     private Entrees entrees;
+    @XmlElement(name="pieces_jointes")
     private String pieces_jointes;
+    @XmlElement(name="adresses")
     List<Adresse> Adresses;
+    @XmlAttribute(name = "nom")
     private String _nom;
+    @XmlAttribute(name = "nom_responsable")
     private String _nom_responsable;
+    @XmlAttribute(name = "essai")
     private short _essai;
+    @XmlAttribute(name = "date_ouverture")
     private long _date_ouverture;
+    @XmlAttribute(name = "date_fermeture")
     private long _date_fermeture;
+    @XmlAttribute(name = "date_derniere_lecture")
     private long _date_derniere_lecture;
+    @XmlAttribute(name = "id_type")
     private short _id_type;
 
     // Getter Methods 
-    @XmlElement
     public Entrees getEntrees() {
         return this.entrees;
     }
 
-    @XmlElement
     public String getPieces_jointes() {
         return pieces_jointes;
     }
 
-    @XmlElement
     public List<Adresse> getAdresses() {
         return Adresses;
     }
 
-    @XmlAttribute
     public String get_nom() {
         return _nom;
     }
 
-    @XmlAttribute
     public String get_nom_responsable() {
         return _nom_responsable;
     }
 
-    @XmlAttribute
     public short get_essai() {
         return _essai;
     }
 
-    @XmlAttribute
     public long get_date_ouverture() {
         return _date_ouverture;
     }
 
-    @XmlAttribute
     public long get_date_fermeture() {
         return _date_fermeture;
     }
 
-    @XmlAttribute
     public long get_date_derniere_lecture() {
         return _date_derniere_lecture;
     }
 
-    @XmlAttribute
     public short get_id_type() {
         return _id_type;
     }
